@@ -26,7 +26,7 @@ pub fn build_gizmo(
     let plane_offset = plane_size / 2. + axis_length * 0.2;
     // Define gizmo meshes
     let arrow_tail_mesh = meshes.add(Mesh::from(shape::Capsule {
-        radius: 0.05,
+        radius: 0.025,
         depth: axis_length,
         ..Default::default()
     }));
@@ -42,10 +42,11 @@ pub fn build_gizmo(
     }));
     let rotation_mesh = meshes.add(Mesh::from(truncated_torus::TruncatedTorus {
         radius: arc_radius,
-        ring_radius: 0.05,
+        ring_radius: 0.025,
         ..Default::default()
     }));
-    //let cube_mesh = meshes.add(Mesh::from(shape::Cube { size: 0.15 }));
+    let cube_mesh = meshes.add(Mesh::from(shape::Cube { size: plane_size / 2.0 }));
+
     // Define gizmo materials
     let (s, l) = (0.8, 0.6);
     let gizmo_matl_x = materials.add(GizmoMaterial::from(Color::hsl(0.0, s, l)));
@@ -103,7 +104,7 @@ pub fn build_gizmo(
             ));
             parent.spawn((
                 MaterialMeshBundle {
-                    mesh: arrow_tail_mesh,
+                    mesh: arrow_tail_mesh.clone(),
                     material: gizmo_matl_z.clone(),
                     transform: Transform::from_matrix(Mat4::from_rotation_translation(
                         Quat::from_rotation_x(std::f32::consts::PI / 2.0),
@@ -231,6 +232,7 @@ pub fn build_gizmo(
                 RenderLayers::layer(12),
             ));
 
+            // Center Sphere
             parent.spawn((
                 MaterialMeshBundle {
                     mesh: sphere_mesh.clone(),
@@ -297,6 +299,119 @@ pub fn build_gizmo(
                 TransformGizmoInteraction::RotateAxis {
                     original: Vec3::Z,
                     axis: Vec3::Z,
+                },
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+
+            // Scale Z axis tail
+            parent.spawn((
+                MaterialMeshBundle {
+                    mesh: arrow_tail_mesh.clone(),
+                    material: gizmo_matl_z.clone(),
+                    transform: Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_x(std::f32::consts::PI / 2.0),
+                        Vec3::new(0.0, 0.0, axis_length / 2.0))),
+                    ..Default::default()
+                },
+                RotationGizmo,
+                PickableGizmo::default(),
+                TransformGizmoInteraction::ScaleAxis {
+                    original: Vec3::Z,
+                    axis: Vec3::Z,
+                },
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            // Scale Z axis cube
+            parent.spawn((
+                MaterialMeshBundle {
+                    mesh: cube_mesh.clone(),
+                    material: gizmo_matl_z_sel.clone(),
+                    transform: Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_x(std::f32::consts::PI / 2.0),
+                        Vec3::new(0.0, 0.0, axis_length),
+                    )),
+                    ..Default::default()
+                },
+                PickableGizmo::default(),
+                TransformGizmoInteraction::ScaleAxis {
+                    original: Vec3::Z,
+                    axis: Vec3::Z,
+                },
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            // Scale X axis tail
+            parent.spawn((
+                MaterialMeshBundle {
+                    mesh: arrow_tail_mesh.clone(),
+                    material: gizmo_matl_x.clone(),
+                    transform: Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_z(std::f32::consts::PI / 2.0),
+                        Vec3::new(axis_length / 2.0, 0.0, 0.0),
+                    )),
+                    ..Default::default()
+                },
+                PickableGizmo::default(),
+                TransformGizmoInteraction::ScaleAxis {
+                    original: Vec3::X,
+                    axis: Vec3::X,
+                },
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            // Scale X axis cube
+            parent.spawn((
+                MaterialMeshBundle {
+                    mesh: cube_mesh.clone(),
+                    material: gizmo_matl_x_sel.clone(),
+                    transform: Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_z(std::f32::consts::PI / -2.0),
+                        Vec3::new(axis_length, 0.0, 0.0),
+                    )),
+                    ..Default::default()
+                },
+                PickableGizmo::default(),
+                TransformGizmoInteraction::ScaleAxis {
+                    original: Vec3::X,
+                    axis: Vec3::X,
+                },
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            // Scale Y axis tail
+            parent.spawn((
+                MaterialMeshBundle {
+                    mesh: arrow_tail_mesh.clone(),
+                    material: gizmo_matl_y.clone(),
+                    transform: Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_y(std::f32::consts::PI / 2.0),
+                        Vec3::new(0.0, axis_length / 2.0, 0.0),
+                    )),
+                    ..Default::default()
+                },
+                RotationGizmo,
+                PickableGizmo::default(),
+                TransformGizmoInteraction::ScaleAxis {
+                    original: Vec3::Y,
+                    axis: Vec3::Y,
+                },
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            // Scale Y axis cube
+            parent.spawn((
+                MaterialMeshBundle {
+                    mesh: cube_mesh.clone(),
+                    material: gizmo_matl_y_sel.clone(),
+                    transform: Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+                    ..Default::default()
+                },
+                PickableGizmo::default(),
+                TransformGizmoInteraction::ScaleAxis {
+                    original: Vec3::Y,
+                    axis: Vec3::Y,
                 },
                 NotShadowCaster,
                 RenderLayers::layer(12),
