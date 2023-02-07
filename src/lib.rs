@@ -17,19 +17,49 @@ pub mod picking;
 use picking::GizmoRaycastSet;
 pub use picking::{GizmoPickSource, PickableGizmo};
 
-#[derive(Resource, Clone, Debug)]
-pub struct GizmoSystemsEnabled(pub bool);
 pub use normalization::Ui3dNormalization;
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug, RunCriteriaLabel)]
 pub struct GizmoSystemsEnabledCriteria;
 
-fn plugin_enabled(enabled: Res<GizmoSystemsEnabled>) -> ShouldRun {
-    if enabled.0 {
-        ShouldRun::Yes
-    } else {
-        ShouldRun::No
+#[derive(Resource, Clone, Debug)]
+pub struct GizmoSystemsEnabled {
+    translate_planes: bool,
+    scale: bool,
+    translate_arrows: bool,
+    rotate: bool,
+    disabled: bool,
+}
+
+// could this new logic be moved in to where the GizmoSystemsEnabled is changed? probably
+fn plugin_enabled(
+    enabled: Res<GizmoSystemsEnabled>,
+    mut visibility_query: Query<(&mut Visibility, &TransformGizmoInteraction)>,
+) -> ShouldRun {
+    //info!("visibility_query.len() {}", visibility_query.iter().len());
+
+    if enabled.disabled {
+        return ShouldRun::No;
     }
+
+    for (mut visible, interaction_type) in visibility_query.iter_mut() {
+        match interaction_type {
+            TransformGizmoInteraction::TranslateAxis { .. } => {
+                visible.is_visible = enabled.translate_arrows;
+            }
+            TransformGizmoInteraction::TranslatePlane { .. } => {
+                visible.is_visible = enabled.translate_planes;
+            }
+            TransformGizmoInteraction::RotateAxis { .. } => {
+                visible.is_visible = enabled.rotate;
+            }
+            TransformGizmoInteraction::ScaleAxis { .. } => {
+                visible.is_visible = enabled.scale;
+            }
+        }
+    }
+
+    ShouldRun::Yes
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
@@ -86,7 +116,13 @@ impl Plugin for TransformGizmoPlugin {
             alignment_rotation,
             allow_rotation: true,
         })
-        .insert_resource(GizmoSystemsEnabled(true))
+        .insert_resource(GizmoSystemsEnabled {
+            translate_planes: false,
+            scale: false,
+            translate_arrows: true,
+            rotate: false,
+            disabled: false,
+        })
         .add_plugin(MaterialPlugin::<GizmoMaterial>::default())
         .add_plugin(picking::GizmoPickingPlugin)
         .add_event::<TransformGizmoEvent>()
