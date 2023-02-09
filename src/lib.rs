@@ -22,7 +22,7 @@ pub use normalization::Ui3dNormalization;
 #[derive(Clone, Hash, PartialEq, Eq, Debug, RunCriteriaLabel)]
 pub struct GizmoSystemsEnabledCriteria;
 
-#[derive(Resource, Clone, Debug)]
+#[derive(Resource, Clone, Debug, Reflect)]
 pub struct GizmoSystemsEnabled {
     translate_planes: bool,
     scale: bool,
@@ -34,7 +34,7 @@ pub struct GizmoSystemsEnabled {
 // could this new logic be moved in to where the GizmoSystemsEnabled is changed? probably
 fn plugin_enabled(
     enabled: Res<GizmoSystemsEnabled>,
-    mut visibility_query: Query<(&mut Visibility, &TransformGizmoInteraction)>,
+    mut visibility_query: Query<(&mut Visibility, &TransformGizmoInteraction, Option<&ViewTranslateGizmo>)>,
 ) -> ShouldRun {
     //info!("visibility_query.len() {}", visibility_query.iter().len());
 
@@ -42,19 +42,23 @@ fn plugin_enabled(
         return ShouldRun::No;
     }
 
-    for (mut visible, interaction_type) in visibility_query.iter_mut() {
-        match interaction_type {
-            TransformGizmoInteraction::TranslateAxis { .. } => {
-                visible.is_visible = enabled.translate_arrows;
-            }
-            TransformGizmoInteraction::TranslatePlane { .. } => {
-                visible.is_visible = enabled.translate_planes;
-            }
-            TransformGizmoInteraction::RotateAxis { .. } => {
-                visible.is_visible = enabled.rotate;
-            }
-            TransformGizmoInteraction::ScaleAxis { .. } => {
-                visible.is_visible = enabled.scale;
+    for (mut visible, interaction_type, view_translate) in visibility_query.iter_mut() {
+        if let Some(_) = view_translate {
+            visible.is_visible = true;
+        } else {
+            match interaction_type {
+                TransformGizmoInteraction::TranslateAxis { .. } => {
+                    visible.is_visible = enabled.translate_arrows;
+                }
+                TransformGizmoInteraction::TranslatePlane { .. } => {
+                    visible.is_visible = enabled.translate_planes;
+                }
+                TransformGizmoInteraction::RotateAxis { .. } => {
+                    visible.is_visible = enabled.rotate;
+                }
+                TransformGizmoInteraction::ScaleAxis { .. } => {
+                    visible.is_visible = enabled.scale;
+                }
             }
         }
     }
@@ -117,10 +121,10 @@ impl Plugin for TransformGizmoPlugin {
             allow_rotation: true,
         })
         .insert_resource(GizmoSystemsEnabled {
-            translate_planes: false,
+            translate_planes: true,
             scale: false,
             translate_arrows: true,
-            rotate: false,
+            rotate: true,
             disabled: false,
         })
         .add_plugin(MaterialPlugin::<GizmoMaterial>::default())
@@ -434,10 +438,57 @@ fn drag_gizmo(
                     },
                 );
             }
-            TransformGizmoInteraction::ScaleAxis {
-                original: _,
-                axis: _,
-            } => (),
+            TransformGizmoInteraction::ScaleAxis { original, axis } => {
+                let vertical_vector = picking_ray.direction().cross(axis).normalize();
+                let plane_normal = axis.cross(vertical_vector).normalize();
+                let plane_origin = gizmo_origin;
+                let cursor_plane_intersection = if let Some(intersection) = picking_camera
+                    .intersect_primitive(Primitive3d::Plane {
+                        normal: plane_normal,
+                        point: plane_origin,
+                    }) {
+                    intersection.position()
+                } else {
+                    return;
+                };
+                let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
+                let cursor_projected_onto_handle = match &gizmo.drag_start {
+                    Some(drag_start) => *drag_start,
+                    None => {
+                        let handle_vector = axis;
+                        let cursor_projected_onto_handle = cursor_vector
+                            .dot(handle_vector.normalize())
+                            * handle_vector.normalize();
+                        gizmo.drag_start = Some(cursor_projected_onto_handle + plane_origin);
+                        return;
+                    }
+                };
+                let selected_handle_vec = cursor_projected_onto_handle - plane_origin;
+                let new_handle_vec = cursor_vector.dot(selected_handle_vec.normalize())
+                    * selected_handle_vec.normalize();
+                let translation = new_handle_vec - selected_handle_vec;
+
+                selected_iter.for_each(
+                    |(_s, parent, mut local_transform, initial_global_transform)| {
+                        let parent_global_transorm = match parent {
+                            Some(parent) => match parent_query.get(parent.get()) {
+                                Ok(transform) => *transform,
+                                Err(_) => GlobalTransform::IDENTITY,
+                            },
+                            None => GlobalTransform::IDENTITY,
+                        };
+                        let parent_mat = parent_global_transorm.compute_matrix();
+                        let inverse_parent = parent_mat.inverse();
+                        let new_transform = Transform {
+                            translation: initial_global_transform.transform.translation,
+                            rotation: initial_global_transform.transform.rotation,
+                            scale: initial_global_transform.transform.scale + translation,
+                        };
+                        let local = inverse_parent * new_transform.compute_matrix();
+                        *local_transform = Transform::from_matrix(local);
+                    },
+                );
+            }
         }
     }
 }
