@@ -102,9 +102,10 @@ pub struct GizmoSettings {
     /// Rotation to apply to the gizmo when it is placed. Used to align the gizmo to a different
     /// coordinate system.
     pub alignment_rotation: Quat,
-    pub allow_rotation: bool,
 }
 
+/// The main plugin, sets up the systems and also adds the GizmoPickingPlugin,
+/// the Ui3dNormalization plugin and the MaterialPlugin::<GizmoMaterial>.
 #[derive(Default, Debug, Clone)]
 pub struct TransformGizmoPlugin;
 
@@ -117,7 +118,6 @@ impl Plugin for TransformGizmoPlugin {
         );
         app.insert_resource(GizmoSettings {
             alignment_rotation: Quat::default(),
-            allow_rotation: true,
         })
         .insert_resource(GizmoSystemsEnabled {
             translate_planes: true,
@@ -492,28 +492,31 @@ fn drag_gizmo(
     }
 }
 
+// get_nearest_intersection returns one entity (the nearest to the picking source, our camera, yes?)
+// get the interaction type and set the gizmo's current_interaction
 fn hover_gizmo(
     gizmo_raycast_source: Query<&GizmoPickSource>,
-    mut gizmo_query: Query<(&Children, &mut TransformGizmo, &mut Interaction, &Transform)>,
+    mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
     hover_query: Query<&TransformGizmoInteraction>,
 ) {
-    for (children, mut gizmo, mut interaction, _transform) in gizmo_query.iter_mut() {
-        if let Some((topmost_gizmo_entity, _)) = gizmo_raycast_source
+    for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
+        // if the raycast has intersected an entity
+        if let Some((gizmo_entity, _)) = gizmo_raycast_source
             .get_single()
             .expect("Missing gizmo raycast source")
             .get_nearest_intersection()
         {
+            // and there is no current interaction
             if *interaction == Interaction::None {
-                for child in children
-                    .iter()
-                    .filter(|entity| **entity == topmost_gizmo_entity)
-                {
-                    *interaction = Interaction::Hovered;
-                    if let Ok(gizmo_interaction) = hover_query.get(*child) {
-                        gizmo.current_interaction = Some(*gizmo_interaction);
-                    }
+                // set the interaction to hovered
+                *interaction = Interaction::Hovered;
+                // then get the interaction type of the intersected entity
+                if let Ok(gizmo_interaction) = hover_query.get(gizmo_entity) {
+                    // and set the TransformGizmo's current interaction 
+                    gizmo.current_interaction = Some(*gizmo_interaction);
                 }
             }
+        // else we have not intersected any gizmo part
         } else if *interaction == Interaction::Hovered {
             *interaction = Interaction::None
         }
@@ -636,49 +639,31 @@ fn propagate_gizmo_elements(
     }
 }
 
+/// Check to see if anything (the alignment_rotation) in GizmoSettings has changed and update the
+/// TransformGizmoInteraction with correct rotation.
 fn update_gizmo_settings(
     plugin_settings: Res<GizmoSettings>,
     mut interactions: Query<&mut TransformGizmoInteraction, Without<ViewTranslateGizmo>>,
-    mut rotations: Query<&mut Visibility, With<RotationGizmo>>,
 ) {
     if !plugin_settings.is_changed() {
         return;
     }
     let rotation = plugin_settings.alignment_rotation;
     for mut interaction in interactions.iter_mut() {
-        if let Some(rotated_interaction) = match *interaction {
-            TransformGizmoInteraction::TranslateAxis { original, axis: _ } => {
-                Some(TransformGizmoInteraction::TranslateAxis {
-                    original,
-                    axis: rotation.mul_vec3(original),
-                })
+        match &mut *interaction {
+            TransformGizmoInteraction::TranslateAxis { original, axis } => {
+                *axis = rotation.mul_vec3(*original);
             }
-            TransformGizmoInteraction::TranslatePlane {
-                original,
-                normal: _,
-            } => Some(TransformGizmoInteraction::TranslatePlane {
-                original,
-                normal: rotation.mul_vec3(original),
-            }),
-            TransformGizmoInteraction::RotateAxis { original, axis: _ } => {
-                Some(TransformGizmoInteraction::RotateAxis {
-                    original,
-                    axis: rotation.mul_vec3(original),
-                })
+            TransformGizmoInteraction::TranslatePlane { original, normal } => {
+                *normal = rotation.mul_vec3(*original); 
             }
-            TransformGizmoInteraction::ScaleAxis { original, axis: _ } => {
-                Some(TransformGizmoInteraction::ScaleAxis {
-                    original,
-                    axis: rotation.mul_vec3(original),
-                })
+            TransformGizmoInteraction::RotateAxis { original, axis } => {
+                *axis = rotation.mul_vec3(*original);
             }
-        } {
-            *interaction = rotated_interaction;
+            TransformGizmoInteraction::ScaleAxis { original, axis } => {
+                *axis = rotation.mul_vec3(*original);
+            }
         }
-    }
-
-    for mut visibility in rotations.iter_mut() {
-        visibility.is_visible = plugin_settings.allow_rotation;
     }
 }
 
