@@ -24,24 +24,21 @@ pub struct GizmoSystemsEnabledCriteria;
 
 #[derive(Resource, Clone, Debug, Reflect)]
 pub struct GizmoSystemsEnabled {
-    translate_planes: bool,
-    scale: bool,
-    translate_arrows: bool,
-    rotate: bool,
-    disabled: bool,
+    pub translate_planes: bool,
+    pub scale: bool,
+    pub translate_arrows: bool,
+    pub rotate: bool,
+    pub disabled: bool,
 }
 
-// could this new logic be moved in to where the GizmoSystemsEnabled is changed? probably
 fn plugin_enabled(
     enabled: Res<GizmoSystemsEnabled>,
-    mut visibility_query: Query<(&mut Visibility, &TransformGizmoInteraction, Option<&ViewTranslateGizmo>)>,
+    mut visibility_query: Query<(
+        &mut Visibility,
+        &TransformGizmoInteraction,
+        Option<&ViewTranslateGizmo>,
+    )>,
 ) -> ShouldRun {
-    //info!("visibility_query.len() {}", visibility_query.iter().len());
-
-    if enabled.disabled {
-        return ShouldRun::No;
-    }
-
     for (mut visible, interaction_type, view_translate) in visibility_query.iter_mut() {
         if let Some(_) = view_translate {
             visible.is_visible = true;
@@ -63,7 +60,11 @@ fn plugin_enabled(
         }
     }
 
-    ShouldRun::Yes
+    if enabled.disabled {
+        ShouldRun::No
+    } else {
+        ShouldRun::Yes
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
@@ -83,12 +84,19 @@ pub struct TransformGizmoEvent {
     pub interaction: TransformGizmoInteraction,
 }
 
+/// Marker component to indicate an mesh/entity that can be selected and transformed with a gizmo.
+/// Note: the mesh/entity must also be selectable in the bevy_mod_picking plugin
+/// .insert(bevy_mod_picking::PickableBundle::default())
+/// .insert(bevy_transform_gizmo::GizmoTransformable);
+// I'm not sure why use this in addition to PickableGizmo 
 #[derive(Component, Default, Clone, Debug)]
 pub struct GizmoTransformable;
 
+/// Marker component to indicate the camera this plugin spawned.
 #[derive(Component, Default, Clone, Debug)]
 pub struct InternalGizmoCamera;
 
+// GizmoSettings used in update_gizmo_settings and place_gizmo 
 #[derive(Resource, Clone, Debug)]
 pub struct GizmoSettings {
     /// Rotation to apply to the gizmo when it is placed. Used to align the gizmo to a different
@@ -98,16 +106,8 @@ pub struct GizmoSettings {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct TransformGizmoPlugin {
-    // Rotation to apply to the gizmo when it is placed. Used to align the gizmo to a different
-    // coordinate system.
-    alignment_rotation: Quat,
-}
-impl TransformGizmoPlugin {
-    pub fn new(alignment_rotation: Quat) -> Self {
-        TransformGizmoPlugin { alignment_rotation }
-    }
-}
+pub struct TransformGizmoPlugin;
+
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
@@ -115,9 +115,8 @@ impl Plugin for TransformGizmoPlugin {
             gizmo_material::GIZMO_SHADER_HANDLE,
             Shader::from_wgsl(include_str!("../assets/gizmo_material.wgsl")),
         );
-        let alignment_rotation = self.alignment_rotation;
         app.insert_resource(GizmoSettings {
-            alignment_rotation,
+            alignment_rotation: Quat::default(),
             allow_rotation: true,
         })
         .insert_resource(GizmoSystemsEnabled {
@@ -438,7 +437,7 @@ fn drag_gizmo(
                     },
                 );
             }
-            TransformGizmoInteraction::ScaleAxis { original, axis } => {
+            TransformGizmoInteraction::ScaleAxis { original: _, axis } => {
                 let vertical_vector = picking_ray.direction().cross(axis).normalize();
                 let plane_normal = axis.cross(vertical_vector).normalize();
                 let plane_origin = gizmo_origin;

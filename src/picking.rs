@@ -3,11 +3,15 @@ use bevy_mod_raycast::RaycastSystem;
 
 use crate::GizmoSystemsEnabledCriteria;
 
+/// Used to mark the meshes and the ray casting source (camera), only these will be checked for intersections.
+pub struct GizmoRaycastSet;
+/// The type used on the camera to indicate it is the raycasting source.
 pub type GizmoPickSource = bevy_mod_raycast::RaycastSource<GizmoRaycastSet>;
+/// The type used to mark the meshes to check for intersections.
 pub type PickableGizmo = bevy_mod_raycast::RaycastMesh<GizmoRaycastSet>;
 
-/// Plugin with all the systems and resources used to raycast against gizmo handles separately from
-/// the `bevy_mod_picking` plugin.
+/// Plugin with all the systems and resources used to raycast against gizmo handles
+/// This is separate from any use of the `bevy_mod_picking` plugin, which is built on top of the bevy_mod_raycast crate.
 pub struct GizmoPickingPlugin;
 impl Plugin for GizmoPickingPlugin {
     fn build(&self, app: &mut App) {
@@ -32,7 +36,6 @@ impl Plugin for GizmoPickingPlugin {
     }
 }
 
-pub struct GizmoRaycastSet;
 
 /// Update the gizmo's raycasting source with the current mouse position.
 fn update_gizmo_raycast_with_cursor(

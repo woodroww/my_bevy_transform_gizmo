@@ -8,13 +8,16 @@ use bevy_mod_raycast::NoBackfaceCulling;
 mod cone;
 mod truncated_torus;
 
+/// Marker component for the rotation arcs. 
 #[derive(Component)]
 pub struct RotationGizmo;
 
+/// Marker component for the screen space sphere in the center of the gizmo.
 #[derive(Component)]
 pub struct ViewTranslateGizmo;
 
 /// Startup system that builds the procedural mesh and materials of the gizmo.
+/// It also spawns the camera bundle with InternalGizmoCamera used by this plugin.
 pub fn build_gizmo(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -314,7 +317,6 @@ pub fn build_gizmo(
                         Vec3::new(0.0, 0.0, axis_length / 2.0))),
                     ..Default::default()
                 },
-                RotationGizmo,
                 PickableGizmo::default(),
                 TransformGizmoInteraction::ScaleAxis {
                     original: Vec3::Z,
@@ -391,7 +393,6 @@ pub fn build_gizmo(
                     )),
                     ..Default::default()
                 },
-                RotationGizmo,
                 PickableGizmo::default(),
                 TransformGizmoInteraction::ScaleAxis {
                     original: Vec3::Y,
