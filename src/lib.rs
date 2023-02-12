@@ -6,7 +6,7 @@ use bevy::{
 use bevy_mod_picking::{self, PickingBlocker, PickingCamera, Primitive3d, Selection};
 use bevy_mod_raycast::RaycastSystem;
 use gizmo_material::GizmoMaterial;
-use mesh::{RotationGizmo, ViewTranslateGizmo};
+use mesh::ViewTranslateGizmo;
 use normalization::*;
 
 mod gizmo_material;
@@ -88,7 +88,7 @@ pub struct TransformGizmoEvent {
 /// Note: the mesh/entity must also be selectable in the bevy_mod_picking plugin
 /// .insert(bevy_mod_picking::PickableBundle::default())
 /// .insert(bevy_transform_gizmo::GizmoTransformable);
-// I'm not sure why use this in addition to PickableGizmo 
+// I'm not sure why use this in addition to PickableGizmo
 #[derive(Component, Default, Clone, Debug)]
 pub struct GizmoTransformable;
 
@@ -96,7 +96,7 @@ pub struct GizmoTransformable;
 #[derive(Component, Default, Clone, Debug)]
 pub struct InternalGizmoCamera;
 
-// GizmoSettings used in update_gizmo_settings and place_gizmo 
+/// GizmoSettings used in update_gizmo_settings and place_gizmo
 #[derive(Resource, Clone, Debug)]
 pub struct GizmoSettings {
     /// Rotation to apply to the gizmo when it is placed. Used to align the gizmo to a different
@@ -512,7 +512,7 @@ fn hover_gizmo(
                 *interaction = Interaction::Hovered;
                 // then get the interaction type of the intersected entity
                 if let Ok(gizmo_interaction) = hover_query.get(gizmo_entity) {
-                    // and set the TransformGizmo's current interaction 
+                    // and set the TransformGizmo's current interaction
                     gizmo.current_interaction = Some(*gizmo_interaction);
                 }
             }
@@ -534,7 +534,7 @@ fn grab_gizmo(
     mut gizmo_events: EventWriter<TransformGizmoEvent>,
     mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction, &GlobalTransform)>,
     selected_items_query: Query<(
-        &Selection,
+        &bevy_mod_picking::Selection,
         &GlobalTransform,
         Entity,
         Option<&RotationOriginOffset>,
@@ -655,7 +655,7 @@ fn update_gizmo_settings(
                 *axis = rotation.mul_vec3(*original);
             }
             TransformGizmoInteraction::TranslatePlane { original, normal } => {
-                *normal = rotation.mul_vec3(*original); 
+                *normal = rotation.mul_vec3(*original);
             }
             TransformGizmoInteraction::RotateAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
