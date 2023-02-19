@@ -23,7 +23,7 @@ pub use normalization::Ui3dNormalization;
 pub struct GizmoSystemsEnabledCriteria;
 
 #[derive(Resource, Clone, Debug, Reflect)]
-pub struct GizmoSystemsEnabled {
+pub struct GizmoPartsEnabled {
     pub translate_planes: bool,
     pub scale: bool,
     pub translate_arrows: bool,
@@ -32,7 +32,7 @@ pub struct GizmoSystemsEnabled {
 }
 
 fn plugin_enabled(
-    enabled: Res<GizmoSystemsEnabled>,
+    enabled: Res<GizmoPartsEnabled>,
     mut visibility_query: Query<(
         &mut Visibility,
         &TransformGizmoInteraction,
@@ -82,6 +82,7 @@ pub struct TransformGizmoEvent {
     pub from: GlobalTransform,
     pub to: GlobalTransform,
     pub interaction: TransformGizmoInteraction,
+    pub entities: Vec<Entity>,
 }
 
 /// Marker component to indicate an mesh/entity that can be selected and transformed with a gizmo.
@@ -119,7 +120,7 @@ impl Plugin for TransformGizmoPlugin {
         app.insert_resource(GizmoSettings {
             alignment_rotation: Quat::default(),
         })
-        .insert_resource(GizmoSystemsEnabled {
+        .insert_resource(GizmoPartsEnabled {
             translate_planes: true,
             scale: false,
             translate_arrows: true,
@@ -212,7 +213,7 @@ pub struct TransformGizmo {
     drag_start: Option<Vec3>,
     origin_drag_start: Option<Vec3>,
     // Initial transform of the gizmo
-    initial_transform: Option<GlobalTransform>,
+    initial_global: Option<GlobalTransform>,
 }
 
 impl TransformGizmo {
@@ -223,6 +224,7 @@ impl TransformGizmo {
 }
 
 /// Marks the current active gizmo interaction
+// these are set in the mesh/mod.rs
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
 pub enum TransformGizmoInteraction {
     TranslateAxis { original: Vec3, axis: Vec3 },
@@ -232,9 +234,10 @@ pub enum TransformGizmoInteraction {
 }
 
 #[derive(Component)]
-struct InitialTransform {
-    transform: Transform,
-    rotation_offset: Vec3,
+pub struct InitialTransform {
+    pub global: Transform,
+    pub local: Transform,
+    pub rotation_offset: Vec3,
 }
 
 /// Updates the position of the gizmo and selected meshes while the gizmo is being dragged.
@@ -291,8 +294,8 @@ fn drag_gizmo(
     };
     let selected_iter = transform_query.iter_mut().filter(|(s, ..)| s.selected());
     if let Some(interaction) = gizmo.current_interaction {
-        if gizmo.initial_transform.is_none() {
-            gizmo.initial_transform = Some(gizmo_transform);
+        if gizmo.initial_global.is_none() {
+            gizmo.initial_global = Some(gizmo_transform);
         }
         match interaction {
             TransformGizmoInteraction::TranslateAxis { original: _, axis } => {
@@ -336,10 +339,10 @@ fn drag_gizmo(
                         let parent_mat = parent_global_transorm.compute_matrix();
                         let inverse_parent = parent_mat.inverse();
                         let new_transform = Transform {
-                            translation: initial_global_transform.transform.translation
+                            translation: initial_global_transform.global.translation
                                 + translation,
-                            rotation: initial_global_transform.transform.rotation,
-                            scale: initial_global_transform.transform.scale,
+                            rotation: initial_global_transform.global.rotation,
+                            scale: initial_global_transform.global.scale,
                         };
                         let local = inverse_parent * new_transform.compute_matrix();
                         *local_transform = Transform::from_matrix(local);
@@ -376,11 +379,11 @@ fn drag_gizmo(
                         let parent_mat = parent_global_transorm.compute_matrix();
                         let inverse_parent = parent_mat.inverse();
                         let new_transform = Transform {
-                            translation: initial_transform.transform.translation
+                            translation: initial_transform.global.translation
                                 + cursor_plane_intersection
                                 - drag_start,
-                            rotation: initial_transform.transform.rotation,
-                            scale: initial_transform.transform.scale,
+                            rotation: initial_transform.global.rotation,
+                            scale: initial_transform.global.scale,
                         };
                         let local = inverse_parent * new_transform.compute_matrix();
                         *local_transform = Transform::from_matrix(local);
@@ -423,14 +426,14 @@ fn drag_gizmo(
                         let parent_mat = parent_global_transorm.compute_matrix();
                         let inverse_parent = parent_mat.inverse();
 
-                        let worldspace_offset = initial_transform.transform.rotation
+                        let worldspace_offset = initial_transform.global.rotation
                             * initial_transform.rotation_offset;
                         let offset_rotated = rotation * worldspace_offset;
                         let offset = worldspace_offset - offset_rotated;
                         let new_transform = Transform {
-                            translation: initial_transform.transform.translation + offset,
-                            rotation: rotation * initial_transform.transform.rotation,
-                            scale: initial_transform.transform.scale,
+                            translation: initial_transform.global.translation + offset,
+                            rotation: rotation * initial_transform.global.rotation,
+                            scale: initial_transform.global.scale,
                         };
                         let local = inverse_parent * new_transform.compute_matrix();
                         *local_transform = Transform::from_matrix(local);
@@ -479,9 +482,9 @@ fn drag_gizmo(
                         let parent_mat = parent_global_transorm.compute_matrix();
                         let inverse_parent = parent_mat.inverse();
                         let new_transform = Transform {
-                            translation: initial_global_transform.transform.translation,
-                            rotation: initial_global_transform.transform.rotation,
-                            scale: initial_global_transform.transform.scale + translation,
+                            translation: initial_global_transform.global.translation,
+                            rotation: initial_global_transform.global.rotation,
+                            scale: initial_global_transform.global.scale + translation,
                         };
                         let local = inverse_parent * new_transform.compute_matrix();
                         *local_transform = Transform::from_matrix(local);
@@ -501,11 +504,14 @@ fn hover_gizmo(
 ) {
     for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
         // if the raycast has intersected an entity
-        if let Some((gizmo_entity, _)) = gizmo_raycast_source
-            .get_single()
-            .expect("Missing gizmo raycast source")
-            .get_nearest_intersection()
-        {
+        let gizmo_raycast_source = match gizmo_raycast_source.get_single() {
+            Ok(source) => source,
+            Err(_err) => {
+                println!("Missing gizmo raycast source");
+                return;
+            }
+        };
+        if let Some((gizmo_entity, _)) = gizmo_raycast_source.get_nearest_intersection() {
             // and there is no current interaction
             if *interaction == Interaction::None {
                 // set the interaction to hovered
@@ -536,6 +542,7 @@ fn grab_gizmo(
     selected_items_query: Query<(
         &bevy_mod_picking::Selection,
         &GlobalTransform,
+        &Transform,
         Entity,
         Option<&RotationOriginOffset>,
     )>,
@@ -546,15 +553,16 @@ fn grab_gizmo(
             if *interaction == Interaction::Hovered {
                 *interaction = Interaction::Clicked;
                 // Dragging has started, store the initial position of all selected meshes
-                for (selection, transform, entity, rotation_origin_offset) in
+                for (selection, global, local, entity, rotation_origin_offset) in
                     selected_items_query.iter()
                 {
                     if selection.selected() {
                         commands.entity(entity).insert(InitialTransform {
-                            transform: transform.compute_transform(),
+                            global: global.compute_transform(),
                             rotation_offset: rotation_origin_offset
                                 .map(|offset| offset.0)
                                 .unwrap_or(Vec3::ZERO),
+                            local: *local,
                         });
                     }
                 }
@@ -569,14 +577,24 @@ fn grab_gizmo(
         for (mut gizmo, mut interaction, transform) in gizmo_query.iter_mut() {
             *interaction = Interaction::None;
             if let (Some(from), Some(interaction)) =
-                (gizmo.initial_transform, gizmo.current_interaction())
-            {
+                (gizmo.initial_global, gizmo.current_interaction())
+            {   
+                let entities: Vec<Entity> = selected_items_query
+                    .iter()
+                    .filter_map(|(selection, _, _local, entity, _)| {
+                        if selection.selected() {
+                            Some(entity)
+                        } else {
+                            None
+                        }
+                    }).collect();
+
                 let event = TransformGizmoEvent {
                     from,
                     to: *transform,
                     interaction,
+                    entities,
                 };
-                //info!("{:?}", event);
                 gizmo_events.send(event);
                 *gizmo = TransformGizmo::default();
             }
