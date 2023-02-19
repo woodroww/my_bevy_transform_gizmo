@@ -223,6 +223,29 @@ impl TransformGizmo {
     }
 }
 
+#[derive(Clone, Debug, Component)]
+pub struct GizmoPartMaterials {
+    normal_material: Handle<GizmoMaterial>,
+    highlighted_material: Handle<GizmoMaterial>,
+}
+
+#[derive(Clone, Debug, Component)]
+pub enum GizmoInteractionType {
+    TranslateX,
+    TranslateY,
+    TranslateZ,
+    RotateX,
+    RotateY,
+    RotateZ,
+    PlaneX,
+    PlaneY,
+    PlaneZ,
+    ScaleX,
+    ScaleY,
+    ScaleZ,
+    Center,
+}
+
 /// Marks the current active gizmo interaction
 // these are set in the mesh/mod.rs
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
@@ -501,7 +524,9 @@ fn hover_gizmo(
     gizmo_raycast_source: Query<&GizmoPickSource>,
     mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
     hover_query: Query<&TransformGizmoInteraction>,
+    mut gizmo_materials: Query<(&mut Handle<GizmoMaterial>, &GizmoPartMaterials)>,
 ) {
+    //println!("gizmo material count {}", materials.iter().len());
     for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
         // if the raycast has intersected an entity
         let gizmo_raycast_source = match gizmo_raycast_source.get_single() {
@@ -520,11 +545,17 @@ fn hover_gizmo(
                 if let Ok(gizmo_interaction) = hover_query.get(gizmo_entity) {
                     // and set the TransformGizmo's current interaction
                     gizmo.current_interaction = Some(*gizmo_interaction);
+                    if let Ok((mut hovered_material, part_materials)) = gizmo_materials.get_mut(gizmo_entity) {
+                        *hovered_material =  part_materials.highlighted_material.clone();
+                    }
                 }
             }
         // else we have not intersected any gizmo part
         } else if *interaction == Interaction::Hovered {
-            *interaction = Interaction::None
+            *interaction = Interaction::None;
+            for (mut hovered_material, part_materials) in gizmo_materials.iter_mut() {
+                *hovered_material =  part_materials.normal_material.clone();
+            }
         }
     }
 }
