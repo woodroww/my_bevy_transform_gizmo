@@ -578,6 +578,7 @@ fn grab_gizmo(
         Option<&RotationOriginOffset>,
     )>,
     initial_transform_query: Query<Entity, With<InitialTransform>>,
+    mut gizmo_materials: Query<(&mut Handle<GizmoMaterial>, &GizmoPartMaterials)>,
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         for (mut gizmo, mut interaction, _transform) in gizmo_query.iter_mut() {
@@ -628,6 +629,10 @@ fn grab_gizmo(
                 };
                 gizmo_events.send(event);
                 *gizmo = TransformGizmo::default();
+
+                for (mut hovered_material, part_materials) in gizmo_materials.iter_mut() {
+                    *hovered_material =  part_materials.normal_material.clone();
+                }
             }
         }
     }
