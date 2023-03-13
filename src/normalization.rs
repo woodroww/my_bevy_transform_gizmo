@@ -1,16 +1,17 @@
-use bevy::{prelude::*, render::camera::Camera, transform::transform_propagate_system};
+use bevy::{prelude::*, render::camera::Camera, transform::systems::propagate_transforms};
 use bevy_mod_picking::PickingCamera;
 
-use crate::GizmoSystemsEnabledCriteria;
+//use crate::GizmoSystemsEnabledCriteria;
+use crate::plugin_enabled;
 
 pub struct Ui3dNormalization;
 impl Plugin for Ui3dNormalization {
     fn build(&self, app: &mut App) {
-        app.add_system_to_stage(
-            CoreStage::PostUpdate,
+        app.add_system(
             normalize
-                .with_run_criteria(GizmoSystemsEnabledCriteria)
-                .after(transform_propagate_system)
+                .in_base_set(CoreSet::PostUpdate)
+                .run_if(plugin_enabled)
+                .after(propagate_transforms)
                 .after(crate::place_gizmo),
         );
     }

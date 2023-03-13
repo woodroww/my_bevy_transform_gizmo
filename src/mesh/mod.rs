@@ -38,11 +38,11 @@ pub fn build_gizmo(
         radius: 0.12,
         ..Default::default()
     }));
-    let plane_mesh = meshes.add(Mesh::from(shape::Plane { size: plane_size }));
-    let sphere_mesh = meshes.add(Mesh::from(shape::Icosphere {
+    let plane_mesh = meshes.add(Mesh::from(shape::Plane { size: plane_size, subdivisions: 0 }));
+    let sphere_mesh = meshes.add(shape::Icosphere {
         radius: 0.2,
         subdivisions: 3,
-    }));
+    }.try_into().unwrap());
     let rotation_mesh = meshes.add(Mesh::from(truncated_torus::TruncatedTorus {
         radius: arc_radius,
         ring_radius: 0.025,

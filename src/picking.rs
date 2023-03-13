@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_raycast::RaycastSystem;
 
-use crate::GizmoSystemsEnabledCriteria;
-
 /// Used to mark the meshes and the ray casting source (camera), only these will be checked for intersections.
 pub struct GizmoRaycastSet;
 /// The type used on the camera to indicate it is the raycasting source.
@@ -15,27 +13,20 @@ pub type PickableGizmo = bevy_mod_raycast::RaycastMesh<GizmoRaycastSet>;
 pub struct GizmoPickingPlugin;
 impl Plugin for GizmoPickingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set_to_stage(
-            CoreStage::PreUpdate,
-            SystemSet::new()
-                .with_run_criteria(GizmoSystemsEnabledCriteria)
-                .with_system(
-                    bevy_mod_raycast::build_rays::<GizmoRaycastSet>
-                        .label(RaycastSystem::BuildRays::<GizmoRaycastSet>),
-                )
-                .with_system(
-                    bevy_mod_raycast::update_raycast::<GizmoRaycastSet>
-                        .label(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>)
-                        .after(RaycastSystem::BuildRays::<GizmoRaycastSet>),
-                )
-                .with_system(
-                    update_gizmo_raycast_with_cursor
-                        .before(RaycastSystem::BuildRays::<GizmoRaycastSet>),
-                ),
+        app.add_systems(
+            (
+                update_gizmo_raycast_with_cursor
+                    .in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
+                bevy_mod_raycast::build_rays::<GizmoRaycastSet>
+                    .in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
+                bevy_mod_raycast::update_raycast::<GizmoRaycastSet>
+                    .in_set(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
+            )
+                .chain()
+                .in_base_set(CoreSet::PreUpdate),
         );
     }
 }
-
 
 /// Update the gizmo's raycasting source with the current mouse position.
 fn update_gizmo_raycast_with_cursor(

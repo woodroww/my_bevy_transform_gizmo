@@ -1,25 +1,22 @@
-#![allow(clippy::type_complexity)]
-
+//#![allow(clippy::type_complexity)]
 use bevy::{
-    ecs::schedule::ShouldRun, prelude::*, render::camera::Projection, transform::TransformSystem,
+    prelude::*, render::camera::Projection, transform::TransformSystem,
 };
 use bevy_mod_picking::{self, PickingBlocker, PickingCamera, Primitive3d, Selection};
-use bevy_mod_raycast::RaycastSystem;
 use gizmo_material::GizmoMaterial;
 use mesh::ViewTranslateGizmo;
 use normalization::*;
+//use bevy_mod_raycast::RaycastSystem;
+//use picking::GizmoRaycastSet;
 
 mod gizmo_material;
 mod mesh;
 pub mod normalization;
-
 pub mod picking;
-use picking::GizmoRaycastSet;
 pub use picking::{GizmoPickSource, PickableGizmo};
-
 pub use normalization::Ui3dNormalization;
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug, RunCriteriaLabel)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct GizmoSystemsEnabledCriteria;
 
 #[derive(Resource, Clone, Debug, Reflect)]
@@ -33,41 +30,44 @@ pub struct GizmoPartsEnabled {
 
 fn plugin_enabled(
     enabled: Res<GizmoPartsEnabled>,
+    /*
     mut visibility_query: Query<(
         &mut Visibility,
         &TransformGizmoInteraction,
         Option<&ViewTranslateGizmo>,
     )>,
-) -> ShouldRun {
-    for (mut visible, interaction_type, view_translate) in visibility_query.iter_mut() {
-        if let Some(_) = view_translate {
-            visible.is_visible = true;
-        } else {
-            match interaction_type {
-                TransformGizmoInteraction::TranslateAxis { .. } => {
-                    visible.is_visible = enabled.translate_arrows;
-                }
-                TransformGizmoInteraction::TranslatePlane { .. } => {
-                    visible.is_visible = enabled.translate_planes;
-                }
-                TransformGizmoInteraction::RotateAxis { .. } => {
-                    visible.is_visible = enabled.rotate;
-                }
-                TransformGizmoInteraction::ScaleAxis { .. } => {
-                    visible.is_visible = enabled.scale;
-                }
-            }
-        }
-    }
+    */
+) -> bool {
+    // for (mut visible, interaction_type, view_translate) in visibility_query.iter_mut() {
+    //     if let Some(_) = view_translate {
+    //         // may need Inherited in all these idk now
+    //         //*visible = Visibility::Visible;
+    //     } else {
+    //         match interaction_type {
+    //             TransformGizmoInteraction::TranslateAxis { .. } => {
+    //                 //*visible = if enabled.translate_arrows { Visibility::Visible } else { Visibility::Hidden };
+    //             }
+    //             TransformGizmoInteraction::TranslatePlane { .. } => {
+    //                 //*visible = if enabled.translate_planes { Visibility::Visible } else { Visibility::Hidden };
+    //             }
+    //             TransformGizmoInteraction::RotateAxis { .. } => {
+    //                 //*visible = if enabled.rotate { Visibility::Visible } else { Visibility::Hidden };
+    //             }
+    //             TransformGizmoInteraction::ScaleAxis { .. } => {
+    //                 //*visible = if enabled.scale { Visibility::Visible } else { Visibility::Hidden };
+    //             }
+    //         }
+    //     }
+    // }
 
     if enabled.disabled {
-        ShouldRun::No
+        false
     } else {
-        ShouldRun::Yes
+        true
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum TransformGizmoSystem {
     UpdateSettings,
     AdjustViewTranslateGizmo,
@@ -131,50 +131,35 @@ impl Plugin for TransformGizmoPlugin {
         .add_plugin(picking::GizmoPickingPlugin)
         .add_event::<TransformGizmoEvent>()
         .add_plugin(Ui3dNormalization)
-        .add_system_set_to_stage(
-            CoreStage::PreUpdate,
-            SystemSet::new()
-                .with_run_criteria(plugin_enabled.label(GizmoSystemsEnabledCriteria))
-                .with_system(update_gizmo_settings.label(TransformGizmoSystem::UpdateSettings))
-                .with_system(
-                    hover_gizmo
-                        .label(TransformGizmoSystem::Hover)
-                        .after(TransformGizmoSystem::UpdateSettings)
-                        .after(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
-                )
-                .with_system(
-                    grab_gizmo
-                        .label(TransformGizmoSystem::Grab)
-                        .after(TransformGizmoSystem::Hover),
-                ),
+        .add_systems(
+            (
+                update_gizmo_settings
+                    .in_set(TransformGizmoSystem::UpdateSettings),
+                hover_gizmo
+                    .in_set(TransformGizmoSystem::Hover),
+                    //.after(TransformGizmoSystem::UpdateSettings)
+                    ////.after(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
+                grab_gizmo
+                    .in_set(TransformGizmoSystem::Grab),
+                    //.after(TransformGizmoSystem::Hover),
+            ).chain()
+                //.run_if(plugin_enabled)
+                .in_base_set(CoreSet::PreUpdate)
         )
-        .add_system_set_to_stage(
-            CoreStage::PostUpdate,
-            SystemSet::new()
-                .with_run_criteria(plugin_enabled.label(GizmoSystemsEnabledCriteria))
-                .with_system(
-                    drag_gizmo
-                        .label(TransformGizmoSystem::Drag)
-                        .before(TransformSystem::TransformPropagate),
-                )
-                .with_system(
-                    place_gizmo
-                        .label(TransformGizmoSystem::Place)
-                        .after(TransformSystem::TransformPropagate)
-                        .after(TransformGizmoSystem::Drag),
-                )
+        .add_systems(
+            (
+                drag_gizmo,
                 // because place_gizmo runs after the regular TransformPropagate system, it needs its own propagation
-                .with_system(propagate_gizmo_elements.after(place_gizmo))
-                .with_system(
-                    adjust_view_translate_gizmo
-                        .label(TransformGizmoSystem::AdjustViewTranslateGizmo)
-                        .after(TransformGizmoSystem::Place)
-                        .after(propagate_gizmo_elements),
-                )
-                .with_system(gizmo_cam_copy_settings.after(TransformSystem::TransformPropagate)),
+                place_gizmo,
+                propagate_gizmo_elements.after(place_gizmo),
+                adjust_view_translate_gizmo,
+                gizmo_cam_copy_settings.after(TransformSystem::TransformPropagate),
+            ).chain()
+            //.run_if(plugin_enabled.label(GizmoSystemsEnabledCriteria))
+            .in_base_set(CoreSet::PostUpdate),
         )
         .add_startup_system(mesh::build_gizmo)
-        .add_startup_system_to_stage(StartupStage::PostStartup, place_gizmo);
+        .add_startup_system(place_gizmo.in_base_set(StartupSet::PostStartup));
     }
 }
 
@@ -196,7 +181,7 @@ impl Default for TransformGizmoBundle {
             transform: Transform::from_translation(Vec3::splat(f32::MIN)),
             interaction: Interaction::None,
             picking_blocker: PickingBlocker,
-            visible: Visibility { is_visible: false },
+            visible: Visibility::Hidden,
             computed_visibility: ComputedVisibility::default(),
             gizmo: TransformGizmo::default(),
             global_transform: GlobalTransform::default(),
@@ -675,7 +660,11 @@ fn place_gizmo(
         .into();
         transform.translation = centroid;
         transform.rotation = plugin_settings.alignment_rotation;
-        visible.is_visible = n_selected > 0;
+        *visible = if n_selected > 0 {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
     } else {
         error!("Number of gizmos is != 1");
     }
@@ -762,9 +751,9 @@ fn gizmo_cam_copy_settings(
             &Camera,
             &GlobalTransform,
             &Projection,
-            ChangeTrackers<GlobalTransform>,
-            ChangeTrackers<Camera>,
-            ChangeTrackers<Projection>,
+            Ref<GlobalTransform>,
+            Ref<Camera>,
+            Ref<Projection>,
         ),
         With<GizmoPickSource>,
     >,
@@ -787,7 +776,7 @@ fn gizmo_cam_copy_settings(
     }
     if mc_change.is_changed() {
         *gizmo_cam = main_cam.clone();
-        gizmo_cam.priority += 10;
+        gizmo_cam.order += 10;
     }
     if proj_change.is_changed() {
         *proj = main_proj.clone();
