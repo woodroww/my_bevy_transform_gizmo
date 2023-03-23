@@ -1,6 +1,6 @@
 use crate::{
     gizmo_material::GizmoMaterial, InternalGizmoCamera, PickableGizmo, TransformGizmoBundle,
-    TransformGizmoInteraction, GizmoInteractionType, GizmoPartMaterials,
+    TransformGizmoInteraction, /*GizmoInteractionType,*/ GizmoPartMaterials,
 };
 use bevy::{pbr::NotShadowCaster, prelude::*, render::view::RenderLayers};
 use bevy_mod_raycast::NoBackfaceCulling;
@@ -84,8 +84,8 @@ pub fn build_gizmo(
                     )),
                     ..Default::default()
                 },
-                //PickableGizmo::default(),
-                GizmoInteractionType::TranslateX,
+                PickableGizmo::default(),
+                //GizmoInteractionType::TranslateX,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_x.clone(),
                     highlighted_material: gizmo_matl_x_sel.clone(),
@@ -109,8 +109,8 @@ pub fn build_gizmo(
                     )),
                     ..Default::default()
                 },
-                //PickableGizmo::default(),
-                GizmoInteractionType::TranslateY,
+                PickableGizmo::default(),
+                //GizmoInteractionType::TranslateY,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_y.clone(),
                     highlighted_material: gizmo_matl_y_sel.clone(),
@@ -134,8 +134,8 @@ pub fn build_gizmo(
                     )),
                     ..Default::default()
                 },
-                //PickableGizmo::default(),
-                GizmoInteractionType::TranslateZ,
+                PickableGizmo::default(),
+                //GizmoInteractionType::TranslateZ,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_z.clone(),
                     highlighted_material: gizmo_matl_z_sel.clone(),
@@ -160,7 +160,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::TranslateX,
+                //GizmoInteractionType::TranslateX,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_x.clone(),
                     highlighted_material: gizmo_matl_x_sel.clone(),
@@ -185,7 +185,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::TranslateX,
+                //GizmoInteractionType::TranslateX,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_x.clone(),
                     highlighted_material: gizmo_matl_x_sel.clone(),
@@ -208,7 +208,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::TranslateY,
+                //GizmoInteractionType::TranslateY,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_y.clone(),
                     highlighted_material: gizmo_matl_y_sel.clone(),
@@ -234,7 +234,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::PlaneY,
+                //GizmoInteractionType::PlaneY,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_y.clone(),
                     highlighted_material: gizmo_matl_y_sel.clone(),
@@ -260,7 +260,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::TranslateZ,
+                //GizmoInteractionType::TranslateZ,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_z.clone(),
                     highlighted_material: gizmo_matl_z_sel.clone(),
@@ -285,7 +285,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::TranslateZ,
+                //GizmoInteractionType::TranslateZ,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_z.clone(),
                     highlighted_material: gizmo_matl_z_sel.clone(),
@@ -329,7 +329,7 @@ pub fn build_gizmo(
                 },
                 RotationGizmo,
                 PickableGizmo::default(),
-                GizmoInteractionType::RotateX,
+                //GizmoInteractionType::RotateX,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_x.clone(),
                     highlighted_material: gizmo_matl_x_sel.clone(),
@@ -351,7 +351,7 @@ pub fn build_gizmo(
                 },
                 RotationGizmo,
                 PickableGizmo::default(),
-                GizmoInteractionType::RotateY,
+                //GizmoInteractionType::RotateY,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_y.clone(),
                     highlighted_material: gizmo_matl_y_sel.clone(),
@@ -377,7 +377,7 @@ pub fn build_gizmo(
                 },
                 RotationGizmo,
                 PickableGizmo::default(),
-                GizmoInteractionType::RotateZ,
+                //GizmoInteractionType::RotateZ,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_z.clone(),
                     highlighted_material: gizmo_matl_z_sel.clone(),
@@ -400,8 +400,8 @@ pub fn build_gizmo(
                         Vec3::new(0.0, 0.0, axis_length / 2.0))),
                     ..Default::default()
                 },
-                //PickableGizmo::default(),
-                GizmoInteractionType::ScaleZ,
+                PickableGizmo::default(),
+                //GizmoInteractionType::ScaleZ,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_z.clone(),
                     highlighted_material: gizmo_matl_z_sel.clone(),
@@ -426,7 +426,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::ScaleZ,
+                //GizmoInteractionType::ScaleZ,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_z.clone(),
                     highlighted_material: gizmo_matl_z_sel.clone(),
@@ -450,8 +450,8 @@ pub fn build_gizmo(
                     )),
                     ..Default::default()
                 },
-                //PickableGizmo::default(),
-                GizmoInteractionType::ScaleX,
+                PickableGizmo::default(),
+                //GizmoInteractionType::ScaleX,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_x.clone(),
                     highlighted_material: gizmo_matl_x_sel.clone(),
@@ -475,7 +475,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::ScaleX,
+                //GizmoInteractionType::ScaleX,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_x.clone(),
                     highlighted_material: gizmo_matl_x_sel.clone(),
@@ -499,8 +499,8 @@ pub fn build_gizmo(
                     )),
                     ..Default::default()
                 },
-                //PickableGizmo::default(),
-                GizmoInteractionType::ScaleY,
+                PickableGizmo::default(),
+                //GizmoInteractionType::ScaleY,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_y.clone(),
                     highlighted_material: gizmo_matl_y_sel.clone(),
@@ -522,7 +522,7 @@ pub fn build_gizmo(
                     ..Default::default()
                 },
                 PickableGizmo::default(),
-                GizmoInteractionType::ScaleY,
+                //GizmoInteractionType::ScaleY,
                 GizmoPartMaterials {
                     normal_material: gizmo_matl_y.clone(),
                     highlighted_material: gizmo_matl_y_sel.clone(),

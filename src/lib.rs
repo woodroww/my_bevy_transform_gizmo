@@ -1,8 +1,9 @@
 //#![allow(clippy::type_complexity)]
 use bevy::{
-    prelude::*, render::camera::Projection, transform::TransformSystem,
+    prelude::*, render::camera::Projection, transform::TransformSystem, ecs::query::QuerySingleError,
 };
 use bevy_mod_picking::{self, PickingBlocker, PickingCamera, Primitive3d, Selection};
+use bevy_mod_raycast::RaycastSystem;
 use gizmo_material::GizmoMaterial;
 use mesh::ViewTranslateGizmo;
 use normalization::*;
@@ -13,6 +14,7 @@ mod gizmo_material;
 mod mesh;
 pub mod normalization;
 pub mod picking;
+use picking::GizmoRaycastSet;
 pub use picking::{GizmoPickSource, PickableGizmo};
 pub use normalization::Ui3dNormalization;
 
@@ -30,41 +32,8 @@ pub struct GizmoPartsEnabled {
 
 fn plugin_enabled(
     enabled: Res<GizmoPartsEnabled>,
-    /*
-    mut visibility_query: Query<(
-        &mut Visibility,
-        &TransformGizmoInteraction,
-        Option<&ViewTranslateGizmo>,
-    )>,
-    */
 ) -> bool {
-    // for (mut visible, interaction_type, view_translate) in visibility_query.iter_mut() {
-    //     if let Some(_) = view_translate {
-    //         // may need Inherited in all these idk now
-    //         //*visible = Visibility::Visible;
-    //     } else {
-    //         match interaction_type {
-    //             TransformGizmoInteraction::TranslateAxis { .. } => {
-    //                 //*visible = if enabled.translate_arrows { Visibility::Visible } else { Visibility::Hidden };
-    //             }
-    //             TransformGizmoInteraction::TranslatePlane { .. } => {
-    //                 //*visible = if enabled.translate_planes { Visibility::Visible } else { Visibility::Hidden };
-    //             }
-    //             TransformGizmoInteraction::RotateAxis { .. } => {
-    //                 //*visible = if enabled.rotate { Visibility::Visible } else { Visibility::Hidden };
-    //             }
-    //             TransformGizmoInteraction::ScaleAxis { .. } => {
-    //                 //*visible = if enabled.scale { Visibility::Visible } else { Visibility::Hidden };
-    //             }
-    //         }
-    //     }
-    // }
-
-    if enabled.disabled {
-        false
-    } else {
-        true
-    }
+    !enabled.disabled
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
@@ -135,15 +104,17 @@ impl Plugin for TransformGizmoPlugin {
             (
                 update_gizmo_settings
                     .in_set(TransformGizmoSystem::UpdateSettings),
+                    //.run_if(plugin_enabled),
                 hover_gizmo
-                    .in_set(TransformGizmoSystem::Hover),
+                    .in_set(TransformGizmoSystem::Hover)
+                    //.run_if(plugin_enabled),
                     //.after(TransformGizmoSystem::UpdateSettings)
-                    ////.after(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
+                    .after(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
                 grab_gizmo
                     .in_set(TransformGizmoSystem::Grab),
+                    //.run_if(plugin_enabled),
                     //.after(TransformGizmoSystem::Hover),
             ).chain()
-                //.run_if(plugin_enabled)
                 .in_base_set(CoreSet::PreUpdate)
         )
         .add_systems(
@@ -214,6 +185,7 @@ pub struct GizmoPartMaterials {
     highlighted_material: Handle<GizmoMaterial>,
 }
 
+/*
 #[derive(Clone, Debug, Component)]
 pub enum GizmoInteractionType {
     TranslateX,
@@ -229,7 +201,7 @@ pub enum GizmoInteractionType {
     ScaleY,
     ScaleZ,
     Center,
-}
+}*/
 
 /// Marks the current active gizmo interaction
 // these are set in the mesh/mod.rs
@@ -505,24 +477,35 @@ fn drag_gizmo(
 
 // get_nearest_intersection returns one entity (the nearest to the picking source, our camera, yes?)
 // get the interaction type and set the gizmo's current_interaction
+
+
 fn hover_gizmo(
     gizmo_raycast_source: Query<&GizmoPickSource>,
-    mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
+    //mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
+    mut gizmo_query: Query<(&Children, &mut TransformGizmo, &mut Interaction)>,
     hover_query: Query<&TransformGizmoInteraction>,
     mut gizmo_materials: Query<(&mut Handle<GizmoMaterial>, &GizmoPartMaterials)>,
 ) {
     //println!("gizmo material count {}", materials.iter().len());
-    for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
+
+    for (children, mut gizmo, mut interaction) in gizmo_query.iter_mut() {
+    //for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
         // if the raycast has intersected an entity
         let gizmo_raycast_source = match gizmo_raycast_source.get_single() {
             Ok(source) => source,
-            Err(_err) => {
+            Err(QuerySingleError::NoEntities(_)) => {
                 println!("Missing gizmo raycast source");
                 return;
             }
+            Err(QuerySingleError::MultipleEntities(_)) => {
+                println!("Error: There is more than one raycast source");
+                return;
+            }
         };
-        if let Some((gizmo_entity, _)) = gizmo_raycast_source.get_nearest_intersection() {
+        if let Some((topmost_gizmo_entity, _intersection_data)) = gizmo_raycast_source.get_nearest_intersection() {
+            println!("hover intersection, hover_query len: {}", hover_query.iter().len());
             // and there is no current interaction
+            /*
             if *interaction == Interaction::None {
                 // set the interaction to hovered
                 *interaction = Interaction::Hovered;
@@ -535,6 +518,20 @@ fn hover_gizmo(
                     }
                 }
             }
+                */
+
+            if *interaction == Interaction::None {
+                for child in children
+                    .iter()
+                    .filter(|entity| **entity == topmost_gizmo_entity)
+                {
+                    *interaction = Interaction::Hovered;
+                    if let Ok(gizmo_interaction) = hover_query.get(*child) {
+                        gizmo.current_interaction = Some(*gizmo_interaction);
+                    }
+                }
+            }
+
         // else we have not intersected any gizmo part
         } else if *interaction == Interaction::Hovered {
             *interaction = Interaction::None;
@@ -686,25 +683,31 @@ fn propagate_gizmo_elements(
 /// TransformGizmoInteraction with correct rotation.
 fn update_gizmo_settings(
     plugin_settings: Res<GizmoSettings>,
-    mut interactions: Query<&mut TransformGizmoInteraction, Without<ViewTranslateGizmo>>,
+    mut interactions: Query<(&mut Visibility, &mut TransformGizmoInteraction), Without<ViewTranslateGizmo>>,
+    enabled: Res<GizmoPartsEnabled>,
 ) {
     if !plugin_settings.is_changed() {
         return;
     }
     let rotation = plugin_settings.alignment_rotation;
-    for mut interaction in interactions.iter_mut() {
+    for (mut visible, mut interaction) in interactions.iter_mut() {
+        // may need Inherited in all these idk now
         match &mut *interaction {
             TransformGizmoInteraction::TranslateAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
+                *visible = if enabled.translate_arrows { Visibility::Visible } else { Visibility::Hidden };
             }
             TransformGizmoInteraction::TranslatePlane { original, normal } => {
                 *normal = rotation.mul_vec3(*original);
+                *visible = if enabled.translate_planes { Visibility::Visible } else { Visibility::Hidden };
             }
             TransformGizmoInteraction::RotateAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
+                *visible = if enabled.rotate { Visibility::Visible } else { Visibility::Hidden };
             }
             TransformGizmoInteraction::ScaleAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
+                *visible = if enabled.scale { Visibility::Visible } else { Visibility::Hidden };
             }
         }
     }
