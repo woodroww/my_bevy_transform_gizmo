@@ -481,15 +481,13 @@ fn drag_gizmo(
 
 fn hover_gizmo(
     gizmo_raycast_source: Query<&GizmoPickSource>,
-    //mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
-    mut gizmo_query: Query<(&Children, &mut TransformGizmo, &mut Interaction)>,
+    mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
     hover_query: Query<&TransformGizmoInteraction>,
     mut gizmo_materials: Query<(&mut Handle<GizmoMaterial>, &GizmoPartMaterials)>,
 ) {
     //println!("gizmo material count {}", materials.iter().len());
 
-    for (children, mut gizmo, mut interaction) in gizmo_query.iter_mut() {
-    //for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
+    for (mut gizmo, mut interaction) in gizmo_query.iter_mut() {
         // if the raycast has intersected an entity
         let gizmo_raycast_source = match gizmo_raycast_source.get_single() {
             Ok(source) => source,
@@ -502,10 +500,9 @@ fn hover_gizmo(
                 return;
             }
         };
-        if let Some((topmost_gizmo_entity, _intersection_data)) = gizmo_raycast_source.get_nearest_intersection() {
-            println!("hover intersection, hover_query len: {}", hover_query.iter().len());
+        if let Some((gizmo_entity, _intersection_data)) = gizmo_raycast_source.get_nearest_intersection() {
+            // println!("hover intersection, hover_query len: {}", hover_query.iter().len());
             // and there is no current interaction
-            /*
             if *interaction == Interaction::None {
                 // set the interaction to hovered
                 *interaction = Interaction::Hovered;
@@ -515,19 +512,6 @@ fn hover_gizmo(
                     gizmo.current_interaction = Some(*gizmo_interaction);
                     if let Ok((mut hovered_material, part_materials)) = gizmo_materials.get_mut(gizmo_entity) {
                         *hovered_material =  part_materials.highlighted_material.clone();
-                    }
-                }
-            }
-                */
-
-            if *interaction == Interaction::None {
-                for child in children
-                    .iter()
-                    .filter(|entity| **entity == topmost_gizmo_entity)
-                {
-                    *interaction = Interaction::Hovered;
-                    if let Ok(gizmo_interaction) = hover_query.get(*child) {
-                        gizmo.current_interaction = Some(*gizmo_interaction);
                     }
                 }
             }
