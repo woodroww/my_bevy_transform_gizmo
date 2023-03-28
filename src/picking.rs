@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use bevy_mod_raycast::RaycastSystem;
 
+use crate::{GizmoSettings, TransformGizmoSystem};
 /// Used to mark the meshes and the ray casting source (camera), only these will be checked for intersections.
+#[derive(Reflect, Clone)]
 pub struct GizmoRaycastSet;
 /// The type used on the camera to indicate it is the raycasting source.
 pub type GizmoPickSource = bevy_mod_raycast::RaycastSource<GizmoRaycastSet>;
@@ -9,20 +11,26 @@ pub type GizmoPickSource = bevy_mod_raycast::RaycastSource<GizmoRaycastSet>;
 pub type PickableGizmo = bevy_mod_raycast::RaycastMesh<GizmoRaycastSet>;
 
 /// Plugin with all the systems and resources used to raycast against gizmo handles
-/// This is separate from any use of the `bevy_mod_picking` plugin, which is built on top of the bevy_mod_raycast crate.
+/// This is separate from any use of the `bevy_mod_picking` plugin,
+/// which is also built on top of the bevy_mod_raycast crate.
 pub struct GizmoPickingPlugin;
 impl Plugin for GizmoPickingPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             (
-                update_gizmo_raycast_with_cursor
-                    .in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
+                update_gizmo_raycast_with_cursor,
+                    //.in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
                 bevy_mod_raycast::build_rays::<GizmoRaycastSet>
                     .in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
                 bevy_mod_raycast::update_raycast::<GizmoRaycastSet>
                     .in_set(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
             )
                 .chain()
+                .in_set(TransformGizmoSystem::RaycastSet),
+        )
+        .configure_set(
+            TransformGizmoSystem::RaycastSet
+                .run_if(|settings: Res<GizmoSettings>| settings.enabled)
                 .in_base_set(CoreSet::PreUpdate),
         );
     }

@@ -1,23 +1,23 @@
-use bevy::{prelude::*, window::PresentMode::AutoNoVsync};
+use bevy::{
+    prelude::*,
+    window::PresentMode::{self},
+};
 use bevy_mod_picking::DefaultPickingPlugins;
 use bevy_transform_gizmo::TransformGizmoPlugin;
 
 fn main() {
     App::new()
-        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(Msaa::Sample4)
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
-                present_mode: AutoNoVsync,
-                ..Default::default()
-            },
+            primary_window: Some(Window {
+                present_mode: PresentMode::Immediate,
+                ..default()
+            }),
             ..default()
         }))
         .add_plugins(DefaultPickingPlugins)
-        .add_plugin(TransformGizmoPlugin::new(
-            Quat::from_rotation_y(-0.2), // Align the gizmo to a different coordinate system.
-                                         // Use TransformGizmoPlugin::default() to align to the
-                                         // scene's coordinate system.
-        ))
+        .add_plugin(TransformGizmoPlugin)
         .add_startup_system(setup)
         .run();
 }
@@ -31,8 +31,8 @@ fn setup(
     // plane
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
-            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            mesh: meshes.add(Mesh::from(shape::Plane::from_size(5.0))),
+            material: materials.add(Color::rgb(0.8, 0.8, 0.8).into()),
             ..Default::default()
         },
         bevy_mod_picking::PickableBundle::default(),
@@ -42,7 +42,7 @@ fn setup(
     commands.spawn((
         PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            material: materials.add(Color::rgb(0.8, 0.8, 0.8).into()),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..Default::default()
         },

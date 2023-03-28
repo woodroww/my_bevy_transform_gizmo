@@ -5,10 +5,8 @@ use bevy::{
 use bevy_mod_picking::{self, PickingBlocker, PickingCamera, Primitive3d, Selection};
 use bevy_mod_raycast::RaycastSystem;
 use gizmo_material::GizmoMaterial;
-use mesh::ViewTranslateGizmo;
+use mesh::{RotationGizmo, ViewTranslateGizmo};
 use normalization::*;
-//use bevy_mod_raycast::RaycastSystem;
-//use picking::GizmoRaycastSet;
 
 mod gizmo_material;
 mod mesh;
@@ -18,26 +16,13 @@ use picking::GizmoRaycastSet;
 pub use picking::{GizmoPickSource, PickableGizmo};
 pub use normalization::Ui3dNormalization;
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct GizmoSystemsEnabledCriteria;
-
-#[derive(Resource, Clone, Debug, Reflect)]
-pub struct GizmoPartsEnabled {
-    pub translate_planes: bool,
-    pub scale: bool,
-    pub translate_arrows: bool,
-    pub rotate: bool,
-    pub disabled: bool,
-}
-
-fn plugin_enabled(
-    enabled: Res<GizmoPartsEnabled>,
-) -> bool {
-    !enabled.disabled
-}
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum TransformGizmoSystem {
+    InputsSet,
+    MainSet,
+    RaycastSet,
+    NormalizeSet,
     UpdateSettings,
     AdjustViewTranslateGizmo,
     Place,
@@ -66,9 +51,15 @@ pub struct GizmoTransformable;
 #[derive(Component, Default, Clone, Debug)]
 pub struct InternalGizmoCamera;
 
+// formerly GizmoPartsEnabled
 /// GizmoSettings used in update_gizmo_settings and place_gizmo
-#[derive(Resource, Clone, Debug)]
+#[derive(Resource, Clone, Debug, Reflect)]
 pub struct GizmoSettings {
+    pub translate_planes: bool,
+    pub scale: bool,
+    pub translate_arrows: bool,
+    pub rotate: bool,
+    pub enabled: bool,
     /// Rotation to apply to the gizmo when it is placed. Used to align the gizmo to a different
     /// coordinate system.
     pub alignment_rotation: Quat,
@@ -87,50 +78,60 @@ impl Plugin for TransformGizmoPlugin {
             Shader::from_wgsl(include_str!("../assets/gizmo_material.wgsl")),
         );
         app.insert_resource(GizmoSettings {
-            alignment_rotation: Quat::default(),
-        })
-        .insert_resource(GizmoPartsEnabled {
             translate_planes: true,
             scale: false,
             translate_arrows: true,
             rotate: true,
-            disabled: false,
+            enabled: false,
+            alignment_rotation: Quat::default(),
         })
         .add_plugin(MaterialPlugin::<GizmoMaterial>::default())
         .add_plugin(picking::GizmoPickingPlugin)
         .add_event::<TransformGizmoEvent>()
-        .add_plugin(Ui3dNormalization)
-        .add_systems(
+        .add_plugin(Ui3dNormalization);
+
+        // Input Set
+        app.add_systems(
             (
-                update_gizmo_settings
-                    .in_set(TransformGizmoSystem::UpdateSettings),
-                    //.run_if(plugin_enabled),
+                update_gizmo_settings.in_set(TransformGizmoSystem::UpdateSettings),
                 hover_gizmo
                     .in_set(TransformGizmoSystem::Hover)
-                    //.run_if(plugin_enabled),
-                    //.after(TransformGizmoSystem::UpdateSettings)
                     .after(RaycastSystem::UpdateRaycast::<GizmoRaycastSet>),
-                grab_gizmo
-                    .in_set(TransformGizmoSystem::Grab),
-                    //.run_if(plugin_enabled),
-                    //.after(TransformGizmoSystem::Hover),
-            ).chain()
-                .in_base_set(CoreSet::PreUpdate)
+                grab_gizmo.in_set(TransformGizmoSystem::Grab),
+            )
+                .chain()
+                .in_set(TransformGizmoSystem::InputsSet),
         )
-        .add_systems(
+        .configure_set(
+            TransformGizmoSystem::InputsSet
+                .run_if(|settings: Res<GizmoSettings>| settings.enabled)
+                .in_base_set(CoreSet::PreUpdate),
+        );
+
+        // Main Set
+        app.add_systems(
             (
-                drag_gizmo,
-                // because place_gizmo runs after the regular TransformPropagate system, it needs its own propagation
-                place_gizmo,
-                propagate_gizmo_elements.after(place_gizmo),
-                adjust_view_translate_gizmo,
-                gizmo_cam_copy_settings.after(TransformSystem::TransformPropagate),
-            ).chain()
-            //.run_if(plugin_enabled.label(GizmoSystemsEnabledCriteria))
-            .in_base_set(CoreSet::PostUpdate),
+                drag_gizmo
+                    .in_set(TransformGizmoSystem::Drag)
+                    .before(TransformSystem::TransformPropagate),
+                place_gizmo
+                    .in_set(TransformGizmoSystem::Place)
+                    .after(TransformSystem::TransformPropagate),
+                propagate_gizmo_elements,
+                adjust_view_translate_gizmo.in_set(TransformGizmoSystem::Drag),
+                gizmo_cam_copy_settings.in_set(TransformGizmoSystem::Drag),
+            )
+                .chain()
+                .in_set(TransformGizmoSystem::MainSet),
         )
-        .add_startup_system(mesh::build_gizmo)
-        .add_startup_system(place_gizmo.in_base_set(StartupSet::PostStartup));
+        .configure_set(
+            TransformGizmoSystem::MainSet
+                .run_if(|settings: Res<GizmoSettings>| settings.enabled)
+                .in_base_set(CoreSet::PostUpdate),
+        );
+
+        app.add_startup_system(mesh::build_gizmo)
+            .add_system(place_gizmo.in_base_set(StartupSet::PostStartup));
     }
 }
 
@@ -185,26 +186,8 @@ pub struct GizmoPartMaterials {
     highlighted_material: Handle<GizmoMaterial>,
 }
 
-/*
-#[derive(Clone, Debug, Component)]
-pub enum GizmoInteractionType {
-    TranslateX,
-    TranslateY,
-    TranslateZ,
-    RotateX,
-    RotateY,
-    RotateZ,
-    PlaneX,
-    PlaneY,
-    PlaneZ,
-    ScaleX,
-    ScaleY,
-    ScaleZ,
-    Center,
-}*/
-
 /// Marks the current active gizmo interaction
-// these are set in the mesh/mod.rs
+// these are created in the mesh/mod.rs
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
 pub enum TransformGizmoInteraction {
     TranslateAxis { original: Vec3, axis: Vec3 },
@@ -641,11 +624,11 @@ fn place_gizmo(
         .into();
         transform.translation = centroid;
         transform.rotation = plugin_settings.alignment_rotation;
-        *visible = if n_selected > 0 {
-            Visibility::Visible
+        if n_selected > 0 {
+            *visible = Visibility::Inherited;
         } else {
-            Visibility::Hidden
-        };
+            *visible = Visibility::Hidden;
+        }
     } else {
         error!("Number of gizmos is != 1");
     }
@@ -666,32 +649,30 @@ fn propagate_gizmo_elements(
 /// Check to see if anything (the alignment_rotation) in GizmoSettings has changed and update the
 /// TransformGizmoInteraction with correct rotation.
 fn update_gizmo_settings(
-    plugin_settings: Res<GizmoSettings>,
+    settings: Res<GizmoSettings>,
     mut interactions: Query<(&mut Visibility, &mut TransformGizmoInteraction), Without<ViewTranslateGizmo>>,
-    enabled: Res<GizmoPartsEnabled>,
 ) {
-    if !plugin_settings.is_changed() {
+    if !settings.is_changed() {
         return;
     }
-    let rotation = plugin_settings.alignment_rotation;
+    let rotation = settings.alignment_rotation;
     for (mut visible, mut interaction) in interactions.iter_mut() {
-        // may need Inherited in all these idk now
         match &mut *interaction {
             TransformGizmoInteraction::TranslateAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
-                *visible = if enabled.translate_arrows { Visibility::Visible } else { Visibility::Hidden };
+                *visible = if settings.translate_arrows { Visibility::Inherited } else { Visibility::Hidden };
             }
             TransformGizmoInteraction::TranslatePlane { original, normal } => {
                 *normal = rotation.mul_vec3(*original);
-                *visible = if enabled.translate_planes { Visibility::Visible } else { Visibility::Hidden };
+                *visible = if settings.translate_planes { Visibility::Inherited } else { Visibility::Hidden };
             }
             TransformGizmoInteraction::RotateAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
-                *visible = if enabled.rotate { Visibility::Visible } else { Visibility::Hidden };
+                *visible = if settings.rotate { Visibility::Inherited } else { Visibility::Hidden };
             }
             TransformGizmoInteraction::ScaleAxis { original, axis } => {
                 *axis = rotation.mul_vec3(*original);
-                *visible = if enabled.scale { Visibility::Visible } else { Visibility::Hidden };
+                *visible = if settings.scale { Visibility::Inherited } else { Visibility::Hidden };
             }
         }
     }
@@ -733,39 +714,27 @@ fn adjust_view_translate_gizmo(
 }
 
 fn gizmo_cam_copy_settings(
-    main_cam: Query<
-        (
-            &Camera,
-            &GlobalTransform,
-            &Projection,
-            Ref<GlobalTransform>,
-            Ref<Camera>,
-            Ref<Projection>,
-        ),
-        With<GizmoPickSource>,
-    >,
+    main_cam: Query<(Ref<Camera>, Ref<GlobalTransform>, Ref<Projection>), With<GizmoPickSource>>,
     mut gizmo_cam: Query<
         (&mut Camera, &mut GlobalTransform, &mut Projection),
         (With<InternalGizmoCamera>, Without<GizmoPickSource>),
     >,
 ) {
-    let (main_cam, main_cam_pos, main_proj, mcpos_change, mc_change, proj_change) = if let Ok(x) =
-        main_cam.get_single()
-    {
+    let (main_cam, main_cam_pos, main_proj) = if let Ok(x) = main_cam.get_single() {
         x
     } else {
         error!("No `GizmoPickSource` found! Insert the `GizmoPickSource` component onto your primary 3d camera");
         return;
     };
     let (mut gizmo_cam, mut gizmo_cam_pos, mut proj) = gizmo_cam.single_mut();
-    if mcpos_change.is_changed() {
+    if main_cam_pos.is_changed() {
         *gizmo_cam_pos = *main_cam_pos;
     }
-    if mc_change.is_changed() {
+    if main_cam.is_changed() {
         *gizmo_cam = main_cam.clone();
         gizmo_cam.order += 10;
     }
-    if proj_change.is_changed() {
+    if main_proj.is_changed() {
         *proj = main_proj.clone();
     }
 }
