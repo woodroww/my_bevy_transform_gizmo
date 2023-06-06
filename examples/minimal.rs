@@ -17,11 +17,7 @@ fn main() {
             ..default()
         }))
         .add_plugins(DefaultPickingPlugins)
-        .add_plugin(TransformGizmoPlugin::new(
-            Quat::from_rotation_y(-0.2), // Align the gizmo to a different coordinate system.
-                                         // Use TransformGizmoPlugin::default() to align to the
-                                         // scene's coordinate system.
-        ))
+        .add_plugin(TransformGizmoPlugin)
         .add_startup_system(setup)
         .run();
 }
