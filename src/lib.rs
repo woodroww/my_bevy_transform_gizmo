@@ -1,7 +1,5 @@
-//#![allow(clippy::type_complexity)]
-use bevy::{
-    prelude::*, render::camera::Projection, transform::TransformSystem, ecs::query::QuerySingleError,
-};
+use bevy::{prelude::*, render::camera::Projection, transform::TransformSystem};
+use bevy::ecs::query::QuerySingleError;
 use bevy_mod_picking::{self, PickingBlocker, PickingCamera, Primitive3d, Selection};
 use bevy_mod_raycast::RaycastSystem;
 use gizmo_material::GizmoMaterial;
@@ -15,7 +13,6 @@ pub mod picking;
 use picking::GizmoRaycastSet;
 pub use picking::{GizmoPickSource, PickableGizmo};
 pub use normalization::Ui3dNormalization;
-
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum TransformGizmoSystem {
@@ -51,7 +48,6 @@ pub struct GizmoTransformable;
 #[derive(Component, Default, Clone, Debug)]
 pub struct InternalGizmoCamera;
 
-// formerly GizmoPartsEnabled
 /// GizmoSettings used in update_gizmo_settings and place_gizmo
 #[derive(Resource, Clone, Debug, Reflect)]
 pub struct GizmoSettings {
@@ -82,7 +78,7 @@ impl Plugin for TransformGizmoPlugin {
             scale: false,
             translate_arrows: true,
             rotate: true,
-            enabled: false,
+            enabled: true, // if this is false we get the multiple camera conflit warnings
             alignment_rotation: Quat::default(),
         })
         .add_plugin(MaterialPlugin::<GizmoMaterial>::default())
@@ -460,8 +456,6 @@ fn drag_gizmo(
 
 // get_nearest_intersection returns one entity (the nearest to the picking source, our camera, yes?)
 // get the interaction type and set the gizmo's current_interaction
-
-
 fn hover_gizmo(
     gizmo_raycast_source: Query<&GizmoPickSource>,
     mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction)>,
@@ -520,7 +514,7 @@ fn grab_gizmo(
     mut gizmo_events: EventWriter<TransformGizmoEvent>,
     mut gizmo_query: Query<(&mut TransformGizmo, &mut Interaction, &GlobalTransform)>,
     selected_items_query: Query<(
-        &bevy_mod_picking::Selection,
+        &Selection,
         &GlobalTransform,
         &Transform,
         Entity,

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_mod_raycast::RaycastSystem;
 
 use crate::{GizmoSettings, TransformGizmoSystem};
+
 /// Used to mark the meshes and the ray casting source (camera), only these will be checked for intersections.
 #[derive(Reflect, Clone)]
 pub struct GizmoRaycastSet;
@@ -19,7 +20,6 @@ impl Plugin for GizmoPickingPlugin {
         app.add_systems(
             (
                 update_gizmo_raycast_with_cursor,
-                    //.in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
                 bevy_mod_raycast::build_rays::<GizmoRaycastSet>
                     .in_set(RaycastSystem::BuildRays::<GizmoRaycastSet>),
                 bevy_mod_raycast::update_raycast::<GizmoRaycastSet>
